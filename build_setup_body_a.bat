@@ -47,10 +47,8 @@ for /f "tokens=* delims= " %%A in ("%BUILD_NAME%") do set "BUILD_NAME=%%A"
 if "%BUILD_NAME%"=="" set "BUILD_NAME=Tesla Search"
 echo        Using name: %BUILD_NAME%
 
-REM Compact setup filename (no spaces): TeslaSearch_Setup
-set "SETUP_BASE="
-for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "$n='%BUILD_NAME%'; -replace '[^A-Za-z0-9_-]','' ; if (-not $n) { $n='TeslaSearch' }; if ($n -notmatch '_Setup$') { $n = $n + '_Setup' }; Write-Output $n"`) do set "SETUP_BASE=%%A"
-if not defined SETUP_BASE set "SETUP_BASE=TeslaSearch_Setup"
+REM Installer file name is always TeslaSearch_Setup.exe (not the exe base name).
+set "SETUP_BASE=TeslaSearch_Setup"
 echo        Setup base: %SETUP_BASE%
 
 REM --- 0b. Stamp version ------------------------------------------------------

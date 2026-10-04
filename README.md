@@ -17,10 +17,11 @@ Window title: **Tesla Vehicle Search**.
 
 | Filter | Notes |
 |--------|--------|
+| **ZIP code** | Top of the filter panel. Labeled entry (default `90210`, hint **Search origin**). Search origin for distance. ZIP → lat/lng via [zippopotam.us](https://api.zippopotam.us/us/{zip}). |
 | **Models** | Model 3 / Y / S / X / Cybertruck (multi-select, default all). Mapped to Tesla codes `m3`, `my`, `ms`, `mx`, `ct`. |
 | **Condition** | New, Used, or Both (default). |
 | **Year** | Min / max. When left wide open, vehicles with no `Year` are kept. If you narrow the range, missing or out-of-range years are excluded. |
-| **ZIP + distance** | Default ZIP `90210`. Choose a mile radius, or **Any / nationwide** to search all locations. ZIP → lat/lng via [zippopotam.us](https://api.zippopotam.us/us/{zip}). |
+| **Distance** | Mile radius, or **Any / nationwide** to search all locations (still measured from the ZIP above). |
 
 ## Results
 

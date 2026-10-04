@@ -21,9 +21,6 @@ echo.
 
 REM --- 0. Program file name ---------------------------------------------------
 set "RAW_NAME=%~1"
-if not defined RAW_NAME (
-    set /p RAW_NAME=Program file name without .exe [Tesla Search]: 
-)
 if not defined RAW_NAME set "RAW_NAME=Tesla Search"
 set "RAW_NAME=%RAW_NAME:"=%"
 if /I "%RAW_NAME:~-4%"==".exe" set "RAW_NAME=%RAW_NAME:~0,-4%"

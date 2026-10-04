@@ -23,7 +23,7 @@ APP_PUBLISHER = "bpnguyengit"
 
 # GitHub raw URL used by Help → Check for updates (falls back to bundled JSON).
 RELEASE_JSON_URL = (
-    "https://raw.githubusercontent.com/bpnguyengit/Tesla-vehicle-Search/refs/heads/main/app_release.json"
+    "https://raw.githubusercontent.com/bpnguyengit/Tesla-vehicle-Search/main/app_release.json"
 )
 
 _VER_RE = re.compile(

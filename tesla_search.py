@@ -230,6 +230,19 @@ class TeslaSearchApp(tk.Tk):
     def _build_filters(self, parent: ttk.Frame) -> None:
         ttk.Label(parent, text="FILTERS", style="Section.TLabel").pack(anchor="w", pady=(0, 8))
 
+        ttk.Label(parent, text="ZIP code", style="Panel.TLabel").pack(anchor="w")
+        zip_row = ttk.Frame(parent, style="Panel.TFrame")
+        zip_row.pack(fill="x", pady=(2, 0))
+        self.zip_var = tk.StringVar(value=DEFAULT_ZIP)
+        ttk.Entry(zip_row, textvariable=self.zip_var, style="Dark.TEntry", width=12).pack(
+            side="left", pady=4
+        )
+        ttk.Label(zip_row, text="  Search origin", style="Section.TLabel").pack(
+            side="left", padx=(4, 0)
+        )
+
+        ttk.Separator(parent).pack(fill="x", pady=10)
+
         ttk.Label(parent, text="Models", style="Panel.TLabel").pack(anchor="w")
         self.model_vars: dict[str, tk.BooleanVar] = {}
         for name in MODEL_CODES:
@@ -281,12 +294,6 @@ class TeslaSearchApp(tk.Tk):
         ).pack(anchor="w", pady=(2, 0))
 
         ttk.Separator(parent).pack(fill="x", pady=10)
-
-        ttk.Label(parent, text="ZIP code", style="Panel.TLabel").pack(anchor="w")
-        self.zip_var = tk.StringVar(value=DEFAULT_ZIP)
-        ttk.Entry(parent, textvariable=self.zip_var, style="Dark.TEntry", width=16).pack(
-            anchor="w", pady=4
-        )
 
         ttk.Label(parent, text="Max distance", style="Panel.TLabel").pack(anchor="w", pady=(8, 0))
         self.distance_var = tk.StringVar(value="Any / nationwide")
@@ -624,9 +631,11 @@ class TeslaSearchApp(tk.Tk):
             "• Year — Min and max year spinboxes. When the range is left wide open, "
             "vehicles with no Year are kept. If you narrow the year range, cars "
             "with a missing Year or a Year outside the range are excluded.\n\n"
-            "• ZIP code — US ZIP used as the search origin (default 90210). The app "
-            "geocodes it via zippopotam.us to latitude/longitude for Tesla's API "
-            "and for distance estimates.\n\n"
+            "• ZIP code — At the top of the filter panel, above models, condition, "
+            "and year. A labeled entry box titled \"ZIP code\" (default 90210, wide "
+            "enough for 5 digits) with the hint \"Search origin\". That ZIP is the "
+            "search origin. The app geocodes it via zippopotam.us to latitude/"
+            "longitude for Tesla's API and for distance estimates.\n\n"
             "• Max distance — Choose a mile radius, or Any / nationwide to search "
             "across locations (large range + outsideSearch).\n\n"
             "Results\n"
