@@ -4,6 +4,12 @@ Desktop app that searches **Tesla’s public US inventory** across locations and
 
 Built with **Python 3** and **Tkinter** (stdlib). Network calls use **urllib**. Runtime needs no `pip install`; packaging uses PyInstaller (see below).
 
+
+## Android
+
+A sideloadable debug APK for phones (Pixel 5 / arm64-v8a, Android 11+) is in [`android/`](android/). It uses the same inventory query, filters, and price ranking as this desktop app. Install with `adb install -r android/TeslaSearch.apk`. Package `com.teslasearch.vehicle`, label **Tesla Search**.
+
+
 ## Run (source)
 
 ```bash
