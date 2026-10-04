@@ -89,6 +89,10 @@ def check_for_updates() -> dict[str, Any]:
     installed = APP_VERSION
     remote = read_remote_release()
     source_label = "GitHub"
+    if remote is None and RELEASE_JSON_URL.rstrip("/").endswith("/main/app_release.json"):
+        # Some CDNs 404 on /main/ briefly for new repos; refs/heads/main is reliable.
+        alt = RELEASE_JSON_URL.replace("/main/app_release.json", "/refs/heads/main/app_release.json")
+        remote = read_remote_release(alt)
     if remote is None:
         remote = read_local_release()
         source_label = "local app_release.json"
