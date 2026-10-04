@@ -1,0 +1,81 @@
+{
+  "results": [
+    {
+      "VIN": "5YJTEST0000000001",
+      "Model": "my",
+      "TrimName": "Long Range All-Wheel Drive",
+      "Year": 2021,
+      "Price": 26300,
+      "PurchasePrice": 26300,
+      "TotalPrice": 26300,
+      "InventoryPrice": 26300,
+      "Discount": 0,
+      "Odometer": 55155,
+      "OdometerType": "Miles",
+      "OdometerTypeShort": "mi",
+      "City": "Owings Mills",
+      "StateProvince": "MD",
+      "MetroName": "Owings Mills, MD",
+      "TransportationFee": 0,
+      "TitleStatus": "USED",
+      "PAINT": [
+        "BLUE"
+      ],
+      "INTERIOR": [
+        "PREMIUM_BLACK"
+      ],
+      "OptionCodeList": "$APF1,$IPB1",
+      "vrlList": [
+        {
+          "vrl": 976,
+          "lat": 39.40063,
+          "lon": -76.75626,
+          "vrlLocks": [
+            976
+          ]
+        }
+      ],
+      "geoPoints": [
+        [
+          "39.40063,-76.75626",
+          976
+        ]
+      ],
+      "CashDetails": {
+        "cash": {
+          "inventoryDiscountWithTax": 0
+        }
+      }
+    },
+    {
+      "VIN": "7SAYTEST0000000002",
+      "Model": "my",
+      "TrimName": "Premium Rear-Wheel Drive",
+      "Year": 2026,
+      "Price": 49490,
+      "PurchasePrice": 48500,
+      "TotalPrice": 49490,
+      "InventoryPrice": 48500,
+      "Discount": 990,
+      "Odometer": 3,
+      "OdometerTypeShort": "mi",
+      "City": null,
+      "StateProvince": null,
+      "TitleStatus": "NEW",
+      "PAINT": [
+        "DIAMOND_BLACK"
+      ],
+      "INTERIOR": [
+        "PREMIUM_BLACK"
+      ],
+      "OptionCodeList": "$MDLY",
+      "vrlList": [],
+      "CashDetails": {
+        "cash": {
+          "inventoryDiscountWithTax": 990
+        }
+      }
+    }
+  ],
+  "total_matches_found": 2
+}

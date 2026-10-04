@@ -1,0 +1,3 @@
+# Runtime uses the Python standard library only (Tkinter + urllib).
+# Build / packaging (used by build_exe.bat):
+pyinstaller>=6.0.0

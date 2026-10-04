@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.DS_Store
+dist/
+build/
+*.spec.bak
+packaging/last_build_name.txt
+build_setup_body.bat
+*.exe
+.env
+.env.*
