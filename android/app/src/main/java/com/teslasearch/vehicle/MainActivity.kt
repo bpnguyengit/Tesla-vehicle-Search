@@ -1,9 +1,15 @@
 package com.teslasearch.vehicle
 
 import android.os.Bundle
+import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -30,6 +36,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -42,12 +49,14 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -98,7 +107,8 @@ data class UiState(
     val errorDialog: String? = null,
     val showGuide: Boolean = false,
     val showAbout: Boolean = false,
-    val detail: Vehicle? = null,
+    val listingUrl: String? = null,
+    val listingTitle: String = "",
 )
 
 class SearchViewModel : ViewModel() {
@@ -123,7 +133,24 @@ class SearchViewModel : ViewModel() {
     fun dismissError() { ui = ui.copy(errorDialog = null) }
     fun showGuide(show: Boolean) { ui = ui.copy(showGuide = show) }
     fun showAbout(show: Boolean) { ui = ui.copy(showAbout = show) }
-    fun showDetail(vehicle: Vehicle?) { ui = ui.copy(detail = vehicle) }
+    fun openListing(vehicle: Vehicle) {
+        val url = buildListingUrl(vehicle)
+        if (url == null) {
+            ui = ui.copy(
+                errorDialog = if (vehicle.vin.isBlank()) {
+                    "This result has no VIN, so the Tesla listing cannot be opened."
+                } else {
+                    "This result cannot be opened."
+                },
+            )
+            return
+        }
+        val title = listOfNotNull(vehicle.year?.toString(), vehicle.modelName)
+            .joinToString(" ")
+            .ifBlank { "Tesla listing" }
+        ui = ui.copy(listingUrl = url, listingTitle = title)
+    }
+    fun closeListing() { ui = ui.copy(listingUrl = null, listingTitle = "") }
 
     fun clearResults() {
         ui = ui.copy(vehicles = emptyList(), summary = "No results yet", status = "Results cleared.")
@@ -257,6 +284,7 @@ private fun TeslaSearchScreen(vm: SearchViewModel) {
     var menu by remember { mutableStateOf(false) }
     var distanceOpen by remember { mutableStateOf(false) }
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = Bg,
         topBar = {
@@ -385,7 +413,7 @@ private fun TeslaSearchScreen(vm: SearchViewModel) {
                 Text(ui.summary, color = Fg, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 4.dp))
             }
             items(ui.vehicles, key = { it.vin.ifBlank { it.hashCode().toString() } }) { vehicle ->
-                VehicleCard(vehicle) { vm.showDetail(vehicle) }
+                VehicleCard(vehicle) { vm.openListing(vehicle) }
             }
         }
     }
@@ -423,14 +451,14 @@ private fun TeslaSearchScreen(vm: SearchViewModel) {
             containerColor = Panel,
         )
     }
-    ui.detail?.let { vehicle ->
-        AlertDialog(
-            onDismissRequest = { vm.showDetail(null) },
-            confirmButton = { TextButton(onClick = { vm.showDetail(null) }) { Text("Close") } },
-            title = { Text(if (vehicle.isBestDeal) "Best deal" else vehicle.modelName) },
-            text = { Text(formatDetail(vehicle)) },
-            containerColor = Panel,
+    val listing = ui.listingUrl
+    if (listing != null) {
+        ListingScreen(
+            url = listing,
+            title = ui.listingTitle,
+            onBack = vm::closeListing,
         )
+    }
     }
 }
 
@@ -465,6 +493,7 @@ private fun VehicleCard(vehicle: Vehicle, onClick: () -> Unit) {
                 fontSize = 13.sp,
             )
             Text("VIN ${vehicle.vin.ifBlank { "—" }}", color = Dim, fontSize = 12.sp)
+            Text("Tap to open Tesla listing", color = Dim, fontSize = 12.sp)
         }
     }
 }
@@ -486,26 +515,85 @@ private fun miles(vehicle: Vehicle): String {
     return "$formatted ${vehicle.odometerUnit}"
 }
 
-private fun formatDetail(vehicle: Vehicle): String {
-    val bits = mutableListOf<String>()
-    if (vehicle.isBestDeal) bits.add("BEST DEAL")
-    bits.add("${vehicle.year ?: "—"} ${vehicle.modelName} ${vehicle.trim}".trim())
-    bits.add("Price ${money(vehicle.price)}")
-    if (vehicle.discount != null && vehicle.discount > 0) bits.add("Discount ${money(vehicle.discount)}")
-    if (vehicle.listPrice != null && vehicle.price != null && vehicle.listPrice != vehicle.price) {
-        bits.add("List ${money(vehicle.listPrice)}")
+
+private const val LISTING_CHROME_UA =
+    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) " +
+        "Chrome/154.0.0.0 Mobile Safari/537.36"
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ListingScreen(url: String, title: String, onBack: () -> Unit) {
+    var progress by remember(url) { mutableIntStateOf(0) }
+    val webViewHolder = remember { mutableStateOf<WebView?>(null) }
+    BackHandler {
+        val view = webViewHolder.value
+        if (view != null && view.canGoBack()) view.goBack() else onBack()
     }
-    bits.add(vehicle.condition.replaceFirstChar { it.titlecase(Locale.US) })
-    bits.add(miles(vehicle))
-    bits.add(vehicle.location)
-    if (vehicle.distanceMiles != null) bits.add("${vehicle.distanceMiles.toInt()} mi away")
-    if (vehicle.paint.isNotEmpty()) bits.add(vehicle.paint)
-    if (vehicle.interior.isNotEmpty()) bits.add("Interior ${vehicle.interior}")
-    if (vehicle.transportationFee != null && vehicle.transportationFee > 0) {
-        bits.add("Transport fee ${money(vehicle.transportationFee)}")
+    Scaffold(
+        containerColor = Bg,
+        topBar = {
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Bg, titleContentColor = Fg),
+                navigationIcon = {
+                    TextButton(onClick = onBack) { Text("Back", color = Fg) }
+                },
+                title = {
+                    Column {
+                        Text(title, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text("Tesla listing", color = Dim, fontSize = 12.sp)
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (progress in 1..99) {
+                LinearProgressIndicator(
+                    progress = { progress / 100f },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Accent,
+                    trackColor = Input,
+                )
+            }
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                onRelease = { view ->
+                    view.stopLoading()
+                    view.destroy()
+                },
+                factory = { context ->
+                    WebView(context).apply {
+                        val cookies = CookieManager.getInstance()
+                        cookies.setAcceptCookie(true)
+                        cookies.setAcceptThirdPartyCookies(this, true)
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.loadsImagesAutomatically = true
+                        settings.userAgentString = LISTING_CHROME_UA
+                        settings.setSupportZoom(true)
+                        settings.builtInZoomControls = true
+                        settings.displayZoomControls = false
+                        webViewClient = WebViewClient()
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                progress = newProgress
+                            }
+                        }
+                        tag = url
+                        loadUrl(url)
+                    }
+                },
+                update = { view ->
+                    webViewHolder.value = view
+                    if (view.tag != url) {
+                        view.tag = url
+                        progress = 0
+                        view.loadUrl(url)
+                    }
+                },
+            )
+        }
     }
-    bits.add("VIN ${vehicle.vin}")
-    return bits.joinToString("\n")
 }
 
 private val USER_GUIDE = """
@@ -521,7 +609,7 @@ Year — Min and max. Left wide open, cars with no Year stay in the list. If you
 
 Max distance — A mile radius, or Any / nationwide (large range plus outsideSearch). Distance is still measured from the ZIP.
 
-Results show trim, year, price, discount, mileage, city/state (or Location TBA), distance, and VIN. Tap a card for paint, interior, and fees. Search runs off the main thread. Each model and condition is paged, about 200 vehicles, with a short delay between pages.
+Results show trim, year, price, discount, mileage, city/state (or Location TBA), distance, and VIN. Tap a card to open that car's Tesla listing (photos, price, and options) inside the app. Back returns to these results. Search runs off the main thread. Each model and condition is paged, about 200 vehicles, with a short delay between pages.
 
 Inventory comes from Tesla's public endpoint inventory/api/v4/inventory-results. No Tesla account is used. If Tesla returns HTTP 403, the error is shown as-is.
 """.trimIndent()

@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -371,6 +372,48 @@ def parse_vehicle(raw: dict, condition: str, origin: Optional[GeoPoint] = None) 
         lat=lat,
         lng=lng,
         raw=raw,
+    )
+
+
+
+# Inventory cards link to the official order page, which is where photos,
+# price, and options live. Confirmed against public listing links (m3/my):
+#   https://www.tesla.com/{model}/order/{VIN}?titleStatus=used&redirect=no#overview
+#   https://www.tesla.com/{model}/order/{VIN}?titleStatus=new&redirect=no#overview
+# {model} is the inventory Model code (m3, my, ms, mx, ct), the same slug
+# used by /inventory/new/{model}. The payload has no listing URL field.
+_EXPLICIT_URL_KEYS = (
+    "ListingURL",
+    "ListingUrl",
+    "VehicleURL",
+    "VehicleUrl",
+    "DetailUrl",
+    "InventoryUrl",
+    "OrderUrl",
+)
+_MODEL_PATH_RE = re.compile(r"^[a-z0-9]+$")
+
+
+def listing_url(vehicle: Vehicle) -> Optional[str]:
+    """Official Tesla inventory detail page, or None when it cannot be built."""
+    raw = vehicle.raw or {}
+    for key in _EXPLICIT_URL_KEYS:
+        value = raw.get(key)
+        if isinstance(value, str) and value.startswith("https://"):
+            return value.strip()
+    vin = (vehicle.vin or "").strip()
+    if not vin:
+        return None
+    model = (vehicle.model_code or "").lower().strip()
+    if not _MODEL_PATH_RE.match(model):
+        return None
+    status = (vehicle.title_status or "").lower().strip()
+    if status not in ("new", "used"):
+        status = "used" if (vehicle.condition or "").lower() == "used" else "new"
+    vin_path = urllib.parse.quote(vin, safe="-_.~")
+    return (
+        f"https://www.tesla.com/{model}/order/{vin_path}"
+        f"?titleStatus={status}&redirect=no#overview"
     )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
+import webbrowser
 from datetime import datetime
 from tkinter import ttk, messagebox
 from typing import Optional
@@ -14,6 +15,7 @@ from inventory import (
     InventoryError,
     SearchResult,
     Vehicle,
+    listing_url,
     search_inventory,
 )
 from app_version import APP_DESCRIPTION, APP_NAME, APP_VERSION
@@ -361,6 +363,7 @@ class TeslaSearchApp(tk.Tk):
         self.tree.tag_configure("odd", background=BG_ROW)
         self.tree.tag_configure("even", background=BG_ROW_ALT)
         self.tree.bind("<<TreeviewSelect>>", self.on_select_row)
+        self.tree.bind("<ButtonRelease-1>", self.on_open_listing)
 
         detail = ttk.Frame(parent, style="Panel.TFrame", padding=10)
         detail.pack(fill="x", pady=(8, 0))
@@ -578,7 +581,33 @@ class TeslaSearchApp(tk.Tk):
         if v.transportation_fee:
             bits.append(f"Transport fee {self._fmt_money(v.transportation_fee)}")
         bits.append(f"VIN {v.vin}")
+        url = listing_url(v)
+        if url:
+            bits.append(url)
         return "  ·  ".join(bits)
+
+    def on_open_listing(self, event) -> None:
+        """Open the official Tesla listing for the clicked result row."""
+        if self.tree.identify_region(event.x, event.y) not in ("cell", "tree"):
+            return
+        row = self.tree.identify_row(event.y)
+        if not row:
+            return
+        try:
+            idx = int(row)
+        except ValueError:
+            return
+        if not (0 <= idx < len(self._vehicles)):
+            return
+        vehicle = self._vehicles[idx]
+        url = listing_url(vehicle)
+        if not url:
+            messagebox.showinfo(
+                WINDOW_TITLE,
+                "This result has no VIN, so the Tesla listing cannot be opened.",
+            )
+            return
+        webbrowser.open(url)
 
 
     # --- Help menu -------------------------------------------------------
@@ -643,7 +672,9 @@ class TeslaSearchApp(tk.Tk):
             "• Sorted by effective price ascending (PurchasePrice when present).\n"
             "• Best deal highlights the cheapest priced match.\n"
             "• Columns: price, discount, year, model, trim, mileage, location, "
-            "distance, VIN. Click a column header to sort; click a row for details.\n"
+            "distance, VIN. Click a column header to sort. Click a row to open "
+            "that car's Tesla listing in your browser (photos, price, and options). "
+            "The detail strip still updates on selection.\n"
             "• Search runs on a background thread so the window stays responsive.\n\n"
             "Data source\n"
             "-----------\n"

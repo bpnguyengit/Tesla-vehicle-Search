@@ -74,6 +74,8 @@ data class Vehicle(
     val transportationFee: Double?,
     val paint: String,
     val interior: String,
+    val titleStatus: String = "",
+    val explicitUrl: String = "",
     val isBestDeal: Boolean = false,
 )
 
@@ -337,7 +339,68 @@ fun parseVehicle(raw: JSONObject, condition: String, origin: GeoPoint): Vehicle 
         transportationFee = raw.numOrNull("TransportationFee"),
         paint = optionLabel(raw, "PAINT"),
         interior = optionLabel(raw, "INTERIOR"),
+        titleStatus = raw.optString("TitleStatus").ifBlank { condition },
+        explicitUrl = explicitListingUrl(raw),
     )
+}
+
+private val EXPLICIT_URL_KEYS = listOf(
+    "ListingURL",
+    "ListingUrl",
+    "VehicleURL",
+    "VehicleUrl",
+    "DetailUrl",
+    "InventoryUrl",
+    "OrderUrl",
+)
+
+private fun explicitListingUrl(raw: JSONObject): String {
+    for (key in EXPLICIT_URL_KEYS) {
+        val value = raw.optString(key).trim()
+        if (value.startsWith("https://")) return value
+    }
+    return ""
+}
+
+private fun pathEncode(value: String): String {
+    val sb = StringBuilder(value.length)
+    for (ch in value) {
+        val safe = ch.isLetterOrDigit() || ch == '-' || ch == '_' || ch == '.' || ch == '~'
+        if (safe) {
+            sb.append(ch)
+        } else {
+            for (b in ch.toString().toByteArray(Charsets.UTF_8)) {
+                sb.append(String.format(Locale.US, "%%%02X", b.toInt() and 0xFF))
+            }
+        }
+    }
+    return sb.toString()
+}
+
+/**
+ * Official Tesla inventory detail page (photos, price, options).
+ *
+ * Public listing links use the inventory model code as the path:
+ *   https://www.tesla.com/m3/order/{VIN}?titleStatus=used&redirect=no#overview
+ *   https://www.tesla.com/my/order/{VIN}?titleStatus=new&redirect=no#overview
+ * Model codes match /inventory/new/{model}: m3, my, ms, mx, ct.
+ * An https URL already present on the result (ListingURL and similar) wins.
+ * Returns null when there is no VIN or no model code.
+ */
+fun buildListingUrl(vehicle: Vehicle): String? {
+    val explicit = vehicle.explicitUrl.trim()
+    if (explicit.startsWith("https://")) return explicit
+    val vin = vehicle.vin.trim()
+    if (vin.isEmpty()) return null
+    val model = vehicle.modelCode.lowercase(Locale.US).trim()
+    if (!model.matches(Regex("^[a-z0-9]+$"))) return null
+    val status = vehicle.titleStatus.lowercase(Locale.US).trim()
+    val title = when (status) {
+        "used" -> "used"
+        "new" -> "new"
+        else -> if (vehicle.condition.equals("used", ignoreCase = true)) "used" else "new"
+    }
+    return "https://www.tesla.com/$model/order/${pathEncode(vin)}?titleStatus=$title&redirect=no#overview"
 }
 
 private fun buildQuery(
