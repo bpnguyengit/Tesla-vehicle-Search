@@ -1,5 +1,6 @@
 package com.teslasearch.vehicle
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
@@ -94,7 +95,7 @@ private fun percentEncode(value: String): String {
     return sb.toString()
 }
 
-private fun httpGet(url: String, timeoutMs: Int, teslaHeaders: Boolean): Pair<Int, String> {
+private fun httpGet(url: String, timeoutMs: Int): Pair<Int, String> {
     val conn = (URL(url).openConnection() as HttpURLConnection).apply {
         requestMethod = "GET"
         connectTimeout = timeoutMs
@@ -103,10 +104,6 @@ private fun httpGet(url: String, timeoutMs: Int, teslaHeaders: Boolean): Pair<In
         setRequestProperty("User-Agent", USER_AGENT)
         setRequestProperty("Accept", "application/json, text/plain, */*")
         setRequestProperty("Accept-Language", "en-US,en;q=0.9")
-        if (teslaHeaders) {
-            setRequestProperty("Referer", "https://www.tesla.com/inventory/new/my")
-            setRequestProperty("Origin", "https://www.tesla.com")
-        }
     }
     try {
         val code = conn.responseCode
@@ -126,7 +123,7 @@ fun geocodeZip(zipCode: String): GeoPoint {
     val code: Int
     val body: String
     try {
-        val resp = httpGet(ZIPPO_URL + zip, 15_000, teslaHeaders = false)
+        val resp = httpGet(ZIPPO_URL + zip, 15_000)
         code = resp.first
         body = resp.second
     } catch (exc: Exception) {
@@ -151,13 +148,18 @@ fun geocodeZip(zipCode: String): GeoPoint {
     )
 }
 
-private fun teslaGetJson(url: String): JSONObject {
+private suspend fun teslaGetJson(
+    url: String,
+    teslaGet: suspend (String) -> Pair<Int, String>,
+): JSONObject {
     val code: Int
     val body: String
     try {
-        val resp = httpGet(url, 30_000, teslaHeaders = true)
+        val resp = teslaGet(url)
         code = resp.first
         body = resp.second
+    } catch (exc: CancellationException) {
+        throw exc
     } catch (exc: SocketTimeoutException) {
         throw InventoryException("Timed out waiting for Tesla inventory.")
     } catch (exc: InventoryException) {
@@ -167,9 +169,7 @@ private fun teslaGetJson(url: String): JSONObject {
     }
     if (code == 403) {
         throw InventoryException(
-            "Tesla blocked the request (HTTP 403). Their edge often rejects " +
-                "datacenter IPs or non-browser clients. Try again from a normal " +
-                "home or mobile network, or open tesla.com/inventory in a browser first.",
+            "Tesla refused the inventory request (HTTP 403).",
             statusCode = 403,
         )
     }
@@ -370,10 +370,12 @@ private fun buildQuery(
     return root.toString()
 }
 
-private fun fetchPage(queryJson: String): JSONObject {
+private suspend fun fetchPage(
+    queryJson: String,
+    teslaGet: suspend (String) -> Pair<Int, String>,
+): JSONObject {
     val url = "$INVENTORY_URL?query=${percentEncode(queryJson)}"
-    val payload = teslaGetJson(url)
-    return payload
+    return teslaGetJson(url, teslaGet)
 }
 
 private fun yearInRange(year: Int?, yearMin: Int, yearMax: Int, filterActive: Boolean): Boolean {
@@ -390,6 +392,7 @@ suspend fun searchInventory(
     yearMin: Int,
     yearMax: Int,
     yearFilterActive: Boolean,
+    teslaGet: suspend (String) -> Pair<Int, String>,
     onProgress: suspend (String) -> Unit,
 ): SearchResult {
     onProgress("Geocoding ZIP $zipCode…")
@@ -426,7 +429,7 @@ suspend fun searchInventory(
                 while (gathered < PER_QUERY_CAP) {
                     val count = minOf(PAGE_SIZE, PER_QUERY_CAP - gathered)
                     val query = buildQuery(modelCode, cond, geo, rangeMiles, offset, count)
-                    val payload = fetchPage(query)
+                    val payload = fetchPage(query, teslaGet)
                     val page = flattenResults(payload)
                     val totalRaw = if (payload.has("total_matches_found") && !payload.isNull("total_matches_found")) {
                         payload.opt("total_matches_found")

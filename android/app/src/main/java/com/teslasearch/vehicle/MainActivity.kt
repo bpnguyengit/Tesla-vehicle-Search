@@ -40,6 +40,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,6 +105,9 @@ class SearchViewModel : ViewModel() {
     var ui by mutableStateOf(UiState())
         private set
 
+    @Volatile
+    var teslaFetch: (suspend (String) -> Pair<Int, String>)? = null
+
     private var job: Job? = null
 
     fun updateZip(value: String) { ui = ui.copy(zip = value.filter { it.isDigit() }.take(5)) }
@@ -128,6 +132,11 @@ class SearchViewModel : ViewModel() {
     fun search() {
         if (job?.isActive == true) {
             ui = ui.copy(errorDialog = "A search is already running.")
+            return
+        }
+        val fetch = teslaFetch
+        if (fetch == null) {
+            ui = ui.copy(errorDialog = "Inventory browser is not ready yet. Try again.")
             return
         }
         if (ui.selectedModels.isEmpty()) {
@@ -168,6 +177,7 @@ class SearchViewModel : ViewModel() {
                         yearMin = yearMin,
                         yearMax = yearMax,
                         yearFilterActive = yearActive,
+                        teslaGet = fetch,
                     ) { msg ->
                         withContext(Dispatchers.Main) {
                             ui = ui.copy(status = msg)
@@ -218,14 +228,25 @@ private fun yearBounds(minText: String, maxText: String): Triple<Int, Int, Boole
 }
 
 class MainActivity : ComponentActivity() {
+    private var inventoryBrowser: TeslaWebFetcher? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val browser = TeslaWebFetcher(this)
+        inventoryBrowser = browser
         setContent {
             MaterialTheme(colorScheme = TeslaColors) {
                 val vm: SearchViewModel = viewModel()
+                SideEffect { vm.teslaFetch = browser::fetch }
                 TeslaSearchScreen(vm)
             }
         }
+    }
+
+    override fun onDestroy() {
+        inventoryBrowser?.destroy()
+        inventoryBrowser = null
+        super.onDestroy()
     }
 }
 
